@@ -1,0 +1,13 @@
+{
+  "name": "@loveteemo/quickhide",
+  "version": "0.1.31",
+  "description": "quickHide — 按进程/窗口一键隐藏还原窗口（Windows 摸鱼工具，DNF 聊天窗自动附带）",
+  "license": "Apache-2.0",
+  "author": "teemo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/loveteemo/quickHide.git"
+  },
+  "os": ["win32"],
+  "files": ["quickHide.exe", "README.md"]
+}

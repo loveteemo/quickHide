@@ -1,0 +1,16 @@
+# 构建产物与本地运行文件
+*.exe
+quickHide.ini
+state.txt
+size_memo.txt
+ui_error.log
+QuickHide_old_backup.exe
+QuickHide_publish.exe
+QuickHide_new.exe
+QuickHide_v*.exe
+build_test/
+dist/
+notes.txt
+suspend_state.txt
+mute_state.txt
+build_sources.tmp

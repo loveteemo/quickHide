@@ -1,0 +1,49 @@
+# 发布 quickHide 到 GitHub Packages（npm registry）
+# 手动触发：Actions → Publish GitHub Package → Run workflow，版本号与 Release tag 一致（不含 v 前缀）
+name: Publish GitHub Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '包版本号（与 Release tag 一致，如 0.1.31）'
+        required: true
+        default: '0.1.31'
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+
+      - name: 下载对应版本的 exe（来自 Release 资产）
+        run: |
+          curl -sL -o quickHide.exe \
+            "https://github.com/loveteemo/quickHide/releases/download/v${{ github.event.inputs.version }}/quickHide-${{ github.event.inputs.version }}.exe"
+          ls -la quickHide.exe
+          file quickHide.exe || true
+
+      - name: 发布到 GitHub Packages
+        working-directory: packages/npm
+        run: |
+          cp ../../quickHide.exe .
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = process.env.PKG_VERSION;
+            p.files = ['quickHide.exe', 'README.md'];
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_VERSION: ${{ github.event.inputs.version }}
