@@ -13,7 +13,7 @@ using Microsoft.Win32;
 
 namespace quickHide
 {
-    class SettingsPanel : UserControl
+    class SettingsPanel : UserControl, IMessageFilter
     {
         readonly TrayContext owner;
         readonly HotkeyBox hkHide, hkShow, hkScale;
@@ -96,8 +96,35 @@ namespace quickHide
             hkShow.RecordingChanged += (s, e) => OnRecordingChanged();
             hkScale.RecordingChanged += (s, e) => OnRecordingChanged();
             autoSave.Tick += (s, e) => { autoSave.Stop(); SaveNow(); };
+            Application.AddMessageFilter(this); // 录入热键时全局监听“点击了框外”
 
             ReloadFromCfg();
+        }
+
+        const int WM_LBUTTONDOWN = 0x0201;
+        const int WM_RBUTTONDOWN = 0x0204;
+        const int WM_MBUTTONDOWN = 0x0205;
+        const int WM_NCLBUTTONDOWN = 0x00A1;
+
+        // 录入热键期间，点击输入框以外的任何地方（本软件的标签/空白处/开关/标题栏…）
+        // 都结束录入并提交换绑；点其他程序窗口由 HomeForm.Deactivate 兜底
+        public bool PreFilterMessage(ref Message m)
+        {
+            try
+            {
+                if (IsDisposed || !AnyRecording()) return false;
+                if (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_RBUTTONDOWN && m.Msg != WM_MBUTTONDOWN && m.Msg != WM_NCLBUTTONDOWN) return false;
+                Point p = Cursor.Position;
+                if (InBounds(hkHide, p) || InBounds(hkShow, p) || InBounds(hkScale, p)) return false;
+                EndAllRecording();
+            }
+            catch { }
+            return false; // 只观察不吞消息，点击照常生效
+        }
+
+        bool InBounds(HotkeyBox hk, Point p)
+        {
+            return hk.RectangleToScreen(hk.ClientRectangle).Contains(p);
         }
 
         // 任意热键框获得焦点 → 挂起；全部失焦 → 恢复旧热键并立即保存换绑新热键
@@ -141,7 +168,11 @@ namespace quickHide
         // 关窗/销毁时若仍在录入态，确保全局热键恢复
         protected override void Dispose(bool disposing)
         {
-            if (disposing) owner.ResumeHotkeys();
+            if (disposing)
+            {
+                Application.RemoveMessageFilter(this);
+                owner.ResumeHotkeys();
+            }
             base.Dispose(disposing);
         }
 
