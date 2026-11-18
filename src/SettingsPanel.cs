@@ -119,6 +119,15 @@ namespace quickHide
             return hkHide.Recording || hkShow.Recording || hkScale.Recording;
         }
 
+        // 主窗体失活（点击本程序以外的任何窗口）时统一结束录入：
+        // LostFocus 在个别失活路径上不可靠，Deactivate 兜底保证取消高亮并提交
+        public void EndAllRecording()
+        {
+            hkHide.EndRecording();
+            hkShow.EndRecording();
+            hkScale.EndRecording();
+        }
+
         // 关窗前补交仍未失焦提交的热键改动（点 X 关窗不触发 LostFocus），并立即保存
         public void FlushPendingEdits()
         {

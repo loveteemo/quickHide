@@ -47,6 +47,8 @@ namespace quickHide
             settingsPanel.ModeChanged = () => processPanel.ReloadView();
             // 关窗时补交仍在录入框里未失焦的热键改动（点 X 关窗不会触发 LostFocus）
             FormClosing += (s, e) => settingsPanel.FlushPendingEdits();
+            // 点击本程序以外的窗口 → 结束热键录入态（取消高亮 + 提交换绑）
+            Deactivate += (s, e) => settingsPanel.EndAllRecording();
 
             var tpProcs = new TabPage("进程");
             var tpSettings = new TabPage("设置");

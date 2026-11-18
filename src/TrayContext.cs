@@ -431,6 +431,7 @@ public class TrayContext : ApplicationContext
     internal bool ApplyReload(string tip)
     {
         bool prevHideTaskbar = cfg.HideTaskbarWhenScaled;
+        string prevHide = cfg.HideHotkey, prevShow = cfg.ShowHotkey, prevScale = cfg.ScaleHotkey;
         Config newCfg = Config.Load(cfg.Path);
         cfg.Processes = newCfg.Processes;
         cfg.ExtraClasses = newCfg.ExtraClasses;
@@ -458,6 +459,15 @@ public class TrayContext : ApplicationContext
         if (prevHideTaskbar != cfg.HideTaskbarWhenScaled)
             engine.ApplyTaskbarOption();
         if (hotkeysOk && tip != null) ShowTip(tip, false); // 失败提示已单独弹窗
+        // 热键换绑成功后气泡提示（注册失败已回退时 cfg 与旧值相同，不会误报）
+        if (hotkeysOk && (prevHide != cfg.HideHotkey || prevShow != cfg.ShowHotkey || prevScale != cfg.ScaleHotkey))
+        {
+            var parts = new List<string>();
+            if (prevHide != cfg.HideHotkey) parts.Add("隐藏 " + cfg.HideHotkey);
+            if (prevShow != cfg.ShowHotkey) parts.Add("还原 " + cfg.ShowHotkey);
+            if (prevScale != cfg.ScaleHotkey) parts.Add("缩放 " + cfg.ScaleHotkey);
+            ShowTip("热键已生效：" + string.Join("，", parts.ToArray()), false);
+        }
         UpdateMenuState();
         return hotkeysOk;
     }

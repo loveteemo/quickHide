@@ -59,11 +59,18 @@ namespace quickHide
         protected override void OnLostFocus(EventArgs e)
         {
             base.OnLostFocus(e);
+            EndRecording();
+        }
+
+        // 结束录入：取消高亮、提交改动（失焦才算“设置完成”，此时才保存并换绑热键）。
+        // 交换隐藏/还原热键的中间态（两个框暂时相同）不会中途触发校验回滚。
+        // 幂等：窗口失活（点击程序以外）时由面板统一调用，不重复触发
+        public void EndRecording()
+        {
+            if (!Recording) return;
             Recording = false;
             BackColor = Theme.Panel;
             ForeColor = Theme.Fg;
-            // 失焦才算“设置完成”：此时才提交保存并换绑热键。
-            // 交换隐藏/还原热键的中间态（两个框暂时相同）不会中途触发校验回滚。
             if (Text != textOnFocus && ComboChanged != null) ComboChanged(this, EventArgs.Empty);
             if (RecordingChanged != null) RecordingChanged(this, EventArgs.Empty);
         }
