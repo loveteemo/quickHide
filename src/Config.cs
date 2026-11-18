@@ -28,6 +28,7 @@ public class Config
     public bool ShowBackgroundProcs = false; // 进程列表同时显示后台/托盘进程（默认关）
     public bool SuspendOnHide = false; // 隐藏时暂停目标进程（声音视频全停，还原恢复；比静音更彻底）
     public string ListMode = "process"; // 列表粒度：process=按进程 / window=按窗口（可分别设置每个窗口）
+    public bool RemindOnRebind = true; // 热键换绑成功后弹窗提醒（关闭则在热键框后显示“设置完成”）
     public DateTime MTime; // 配置文件最后修改时间（自动重载检测用）
     public string Path;
     public int GetScale(string normProc)
@@ -76,6 +77,7 @@ public class Config
                     else if (key == "showbackgroundprocs") c.ShowBackgroundProcs = val != "0";
                     else if (key == "suspendonhide") c.SuspendOnHide = val != "0";
                     else if (key == "listmode") c.ListMode = (val == "window") ? "window" : "process";
+                    else if (key == "remidonrebind") c.RemindOnRebind = val != "0";
                     break;
             }
         }
@@ -136,7 +138,8 @@ public class Config
             "MuteOnHide=" + (c.MuteOnHide ? "1" : "0") + "\r\n" +
             "ShowBackgroundProcs=" + (c.ShowBackgroundProcs ? "1" : "0") + "\r\n" +
             "SuspendOnHide=" + (c.SuspendOnHide ? "1" : "0") + "\r\n" +
-            "ListMode=" + (c.ListMode == "window" ? "window" : "process") + "\r\n";
+            "ListMode=" + (c.ListMode == "window" ? "window" : "process") + "\r\n" +
+            "RemindOnRebind=" + (c.RemindOnRebind ? "1" : "0") + "\r\n";
         var scaleLines = new StringBuilder();
         foreach (KeyValuePair<string, int> kv in c.Scale)
         {
@@ -179,6 +182,8 @@ ShowBackgroundProcs=0
 SuspendOnHide=0
 # 列表粒度：process=按进程（默认）/ window=按窗口（可分别设置每个窗口）
 ListMode=process
+# 热键换绑成功后弹窗提醒（关闭则在热键框后显示“设置完成”；1=是 0=否）
+RemindOnRebind=1
 ";
         File.WriteAllText(path, def, new UTF8Encoding(true));
     }

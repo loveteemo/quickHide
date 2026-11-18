@@ -33,6 +33,8 @@ namespace quickHide
         // 异步扫描状态：防止重复点击刷新；扫描期间 lblTip 显示进度
         bool scanning;
         int scanSeq;
+        // 清单里未运行的进程：列表不显示行，但保留在底层清单（进程启动后自动纳入隐藏）
+        readonly HashSet<string> preservedProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 
         public ProcessPanel(TrayContext owner)
@@ -199,11 +201,14 @@ namespace quickHide
                 string n = Config.NormProc((string)it.Tag);
                 if (n.Length > 0 && !list.Contains(n)) list.Add(n);
             }
+            // 未运行不显示行的清单进程必须跟着保存，否则勾选别的软件时会把它们从清单挤掉
+            foreach (string n in preservedProcs)
+                if (!list.Contains(n)) list.Add(n);
             return list;
         }
 
-        // 进程列表 = 当前勾选的进程（含未运行）+ 当前正在运行的有窗口程序（未勾选）
-        // 刷新时保留面板上现有的勾选，避免用户勾到一半被清空
+        // 进程列表 = 当前勾选且正在运行的进程 + 当前正在运行的有窗口程序（未勾选）；
+        // 清单里未运行的进程不显示行（底层清单保留，进程启动后自动纳入隐藏）
         public void ReloadFromCfg()
         {
             if (scanning) return;
@@ -268,18 +273,23 @@ namespace quickHide
             suppressItemAction = true;
             try
             {
+                preservedProcs.Clear();
                 lvProcs.BeginUpdate();
                 lvProcs.Items.Clear();
                 foreach (var n in checkedNow)
                 {
                     string title, path;
                     TryGetRunningInfo(n, out title, out path);
-                    string displayName = (title == null) ? n : GetDisplayName2(n, title, path);
-                    bool running = (title != null);
-                    if (!running) title = "(未运行)";
+                    if (title == null)
+                    {
+                        // 未运行：不显示行，但保留在底层清单（进程启动后自动纳入隐藏）
+                        preservedProcs.Add(n);
+                        continue;
+                    }
+                    string displayName = GetDisplayName2(n, title, path);
                     int sc;
                     if (!scaleMap.TryGetValue(n, out sc)) sc = 100;
-                    lvProcs.Items.Add(MkProcItem(n, displayName, title, path, sc, running));
+                    lvProcs.Items.Add(MkProcItem(n, displayName, title, path, sc, true));
                 }
                 foreach (var r in rows)
                 {

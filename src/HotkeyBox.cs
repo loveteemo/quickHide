@@ -39,7 +39,7 @@ namespace quickHide
             BackColor = Theme.Panel;
             ForeColor = Theme.Fg;
             BorderStyle = BorderStyle.FixedSingle;
-            Width = 130;
+            Width = 112;
             TextAlign = HorizontalAlignment.Center;
             Font = new Font("Microsoft YaHei UI", 9.5F);
             Cursor = Cursors.Hand;

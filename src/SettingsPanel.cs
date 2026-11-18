@@ -17,8 +17,10 @@ namespace quickHide
     {
         readonly TrayContext owner;
         readonly HotkeyBox hkHide, hkShow, hkScale;
+        readonly Label fbHide, fbShow, fbScale; // “设置完成”内联提示（提醒开关关闭时显示）
+        readonly System.Windows.Forms.Timer fbTimer = new System.Windows.Forms.Timer { Interval = 2600 };
         readonly NumericUpDown numWatch;
-        readonly ToggleSwitch swRestore, swAutorun, swHideTaskbar, swShowBg, swMute, swSuspend, swListMode;
+        readonly ToggleSwitch swRestore, swAutorun, swHideTaskbar, swShowBg, swMute, swSuspend, swListMode, swRemind;
         readonly ToolTip tipHelp = new ToolTip();
         // 列表模式切换并保存后触发（主页刷新列表用）
         public Action ModeChanged;
@@ -34,14 +36,18 @@ namespace quickHide
             Font = new Font("Microsoft YaHei UI", 9F);
 
             Controls.Add(MkLabel("隐藏热键", 28, 38));
-            hkHide = MkHotkey(128, 34);
+            hkHide = MkHotkey(90, 34);
             Controls.Add(hkHide);
             Controls.Add(MkLabel("还原热键", 288, 38));
-            hkShow = MkHotkey(388, 34);
+            hkShow = MkHotkey(348, 34);
             Controls.Add(hkShow);
             Controls.Add(MkLabel("缩放热键", 548, 38));
-            hkScale = MkHotkey(638, 34);
+            hkScale = MkHotkey(608, 34);
             Controls.Add(hkScale);
+            // “提醒”关闭时，换绑成功在对应热键框后面短暂显示“设置完成”
+            fbHide = MkFeedback(206);
+            fbShow = MkFeedback(464);
+            fbScale = MkFeedback(724);
 
             Controls.Add(MkLabel("监视间隔(ms)", 28, 78));
             numWatch = new NumericUpDown
@@ -72,6 +78,8 @@ namespace quickHide
                 "列表同时显示没有可见窗口的后台/托盘程序（默认只显示有窗口的软件）", 256);
             swListMode = AddSwitchRow("窗口模式（可分别设置每个窗口）",
                 "开启后列表按窗口逐个显示（如 Chrome 的多个窗口可分别隐藏/缩放）；关闭则按进程合并显示", 286);
+            swRemind = AddSwitchRow("热键换绑后弹窗提醒",
+                "开启：换绑成功后在屏幕右下角弹出提示（默认）。关闭：只在对应热键框后面短暂显示“设置完成”", 316);
 
             // 修改后自动保存（防抖）：开关/热键/监视间隔任一变化，0.7 秒后写盘并立即生效
             swRestore.CheckedChanged += (s, e) => QueueAutoSave();
@@ -87,7 +95,14 @@ namespace quickHide
             };
             swMute.CheckedChanged += (s, e) => QueueAutoSave();
             swSuspend.CheckedChanged += (s, e) => QueueAutoSave();
+            swRemind.CheckedChanged += (s, e) => QueueAutoSave();
             numWatch.ValueChanged += (s, e) => QueueAutoSave();
+            fbTimer.Tick += (s, e) =>
+            {
+                fbTimer.Stop();
+                fbHide.Visible = fbShow.Visible = fbScale.Visible = false;
+            };
+            owner.HotkeysRebound = OnHotkeysRebound;
             hkHide.ComboChanged += (s, e) => QueueAutoSave();
             hkShow.ComboChanged += (s, e) => QueueAutoSave();
             hkScale.ComboChanged += (s, e) => QueueAutoSave();
@@ -165,12 +180,33 @@ namespace quickHide
             if (c1 || c2 || c3) SaveNow();
         }
 
+        // “提醒”开关关闭时：换绑成功在对应热键框后显示“设置完成”（开启则 TrayContext 已弹 toast）
+        void OnHotkeysRebound(int[] ids)
+        {
+            if (IsDisposed || owner.cfg.RemindOnRebind) return;
+            foreach (int id in ids)
+            {
+                Label fb = id == 1 ? fbHide : (id == 2 ? fbShow : fbScale); // 1/2/3 = TrayContext 热键槽位
+                fb.Visible = true;
+            }
+            fbTimer.Stop();
+            fbTimer.Start();
+        }
+
+        Label MkFeedback(int x)
+        {
+            var l = new Label { Text = "设置完成", AutoSize = true, ForeColor = Theme.Ok, Visible = false, Location = new Point(x, 42) };
+            Controls.Add(l);
+            return l;
+        }
+
         // 关窗/销毁时若仍在录入态，确保全局热键恢复
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
                 Application.RemoveMessageFilter(this);
+                fbTimer.Dispose();
                 owner.ResumeHotkeys();
             }
             base.Dispose(disposing);
@@ -258,9 +294,10 @@ namespace quickHide
                 swAutorun.Checked = TrayContext.AutorunEnabled();
                 swHideTaskbar.Checked = owner.cfg.HideTaskbarWhenScaled;
                 swShowBg.Checked = owner.cfg.ShowBackgroundProcs;
-            swListMode.Checked = (owner.cfg.ListMode == "window");
+                swListMode.Checked = (owner.cfg.ListMode == "window");
                 swMute.Checked = owner.cfg.MuteOnHide;
                 swSuspend.Checked = owner.cfg.SuspendOnHide;
+                swRemind.Checked = owner.cfg.RemindOnRebind;
             }
             finally
             {
@@ -291,6 +328,7 @@ namespace quickHide
             owner.cfg.SuspendOnHide = swSuspend.Checked;
             owner.cfg.ShowBackgroundProcs = swShowBg.Checked;
             owner.cfg.ListMode = swListMode.Checked ? "window" : "process";
+            owner.cfg.RemindOnRebind = swRemind.Checked;
             TrayContext.SetAutorunRegistry(swAutorun.Checked);
         }
     }

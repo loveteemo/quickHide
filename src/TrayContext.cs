@@ -27,6 +27,8 @@ public class TrayContext : ApplicationContext
     // 热键槽位当前实际生效的组合（注册失败回退时用）
     readonly Dictionary<int, string> activeHotkeys = new Dictionary<int, string>();
     bool hotkeysSuspended; // 设置页录入热键期间挂起全部全局热键
+    // 热键换绑成功后回调（参数=变化的槽位 id：1隐藏/2还原/3缩放）；设置页据此在框后显示“设置完成”
+    internal Action<int[]> HotkeysRebound;
     DateTime cfgMTime;
     string pendingUpdateVersion; // 气泡提示的版本号，点击气泡直接打开关于
 
@@ -349,14 +351,20 @@ public class TrayContext : ApplicationContext
         RegisterOne(HOTKEY_ID_SCALE, "缩放热键", cfg.ScaleHotkey, v => cfg.ScaleHotkey = v, fails, prevActive);
         if (fails.Count == 0)
         {
-            // 换绑成功后气泡提示：与注册前实际生效的组合对比（prevActive 是注销前快照）。
+            // 换绑成功后提示：与注册前实际生效的组合对比（prevActive 是注销前快照）。
             // 不能拿 cfg 比对——SaveNow 里 WriteToCfg 已先把它覆盖成新值；启动时 prevActive 为空不提示
-            var changed = new List<string>();
+            var ids = new List<int>();
+            var texts = new List<string>();
             string before;
-            if (prevActive.TryGetValue(HOTKEY_ID_HIDE, out before) && before != cfg.HideHotkey) changed.Add("隐藏 " + cfg.HideHotkey);
-            if (prevActive.TryGetValue(HOTKEY_ID_SHOW, out before) && before != cfg.ShowHotkey) changed.Add("还原 " + cfg.ShowHotkey);
-            if (prevActive.TryGetValue(HOTKEY_ID_SCALE, out before) && before != cfg.ScaleHotkey) changed.Add("缩放 " + cfg.ScaleHotkey);
-            if (changed.Count > 0) ShowTip("热键已生效：" + string.Join("，", changed.ToArray()), false);
+            if (prevActive.TryGetValue(HOTKEY_ID_HIDE, out before) && before != cfg.HideHotkey) { ids.Add(HOTKEY_ID_HIDE); texts.Add("隐藏 " + cfg.HideHotkey); }
+            if (prevActive.TryGetValue(HOTKEY_ID_SHOW, out before) && before != cfg.ShowHotkey) { ids.Add(HOTKEY_ID_SHOW); texts.Add("还原 " + cfg.ShowHotkey); }
+            if (prevActive.TryGetValue(HOTKEY_ID_SCALE, out before) && before != cfg.ScaleHotkey) { ids.Add(HOTKEY_ID_SCALE); texts.Add("缩放 " + cfg.ScaleHotkey); }
+            if (ids.Count > 0)
+            {
+                if (cfg.RemindOnRebind) ShowTip("热键已生效：" + string.Join("，", texts.ToArray()), false);
+                // 提醒关闭时设置页在热键框后显示“设置完成”（面板未打开则静默）
+                if (HotkeysRebound != null) HotkeysRebound(ids.ToArray());
+            }
             return true;
         }
 
