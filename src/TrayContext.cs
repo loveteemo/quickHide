@@ -123,8 +123,20 @@ public class TrayContext : ApplicationContext
 
     void NotifyUpdate(string ver)
     {
-        ShowTip("发现新版本 v" + ver + "，单击气泡查看更新内容", true);
         pendingUpdateVersion = ver;
+        // 更新提醒保留系统气泡（点击气泡直达关于页）；气泡可能被系统吞，toast 点击兜底
+        try
+        {
+            tray.BalloonTipTitle = "quickHide";
+            tray.BalloonTipText = "发现新版本 v" + ver + "，单击查看更新内容";
+            tray.ShowBalloonTip(4000);
+        }
+        catch { }
+        ShowToast("发现新版本 v" + ver + "，单击本条通知查看更新内容", delegate
+        {
+            pendingUpdateVersion = null;
+            ShowAbout();
+        });
     }
 
     void ShowAbout()
@@ -250,15 +262,22 @@ public class TrayContext : ApplicationContext
 
     internal void ShowTip(string text, bool info)
     {
-        pendingUpdateVersion = null; // 普通提示会顶掉气泡，点击不再算作更新提醒
-        if (tray == null) return; // 启动早期托盘尚未创建
+        pendingUpdateVersion = null; // 普通提示会顶掉更新提醒
+        // 系统气泡可能被 Win11 勿扰/通知设置静默吞掉，改用应用内浮层保证可见
+        ShowToast(text, null);
+    }
+
+    // 右下角应用内 toast；ShowTip 可能被工作线程调用（隐藏动作/引擎事件），转发到 UI 线程
+    void ShowToast(string text, Action click)
+    {
         try
         {
-            tray.BalloonTipTitle = "quickHide";
-            tray.BalloonTipText = text;
-            tray.ShowBalloonTip(1500);
+            if (hotwin.InvokeRequired)
+                hotwin.BeginInvoke((Action)delegate { ToastWindow.Show(text, click); });
+            else
+                ToastWindow.Show(text, click);
         }
-        catch { }
+        catch { } // 退出中热键窗口已销毁，静默
     }
 
     // 设置页进入热键录入时调用：注销全部全局热键（RegisterHotKey 会全局吞键，
