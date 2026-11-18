@@ -91,11 +91,36 @@ namespace quickHide
             hkHide.ComboChanged += (s, e) => QueueAutoSave();
             hkShow.ComboChanged += (s, e) => QueueAutoSave();
             hkScale.ComboChanged += (s, e) => QueueAutoSave();
+            // 点击热键框录入期间挂起全局热键：按旧热键不再触发隐藏/还原，而是正常录入
+            hkHide.RecordingChanged += (s, e) => OnRecordingChanged();
+            hkShow.RecordingChanged += (s, e) => OnRecordingChanged();
+            hkScale.RecordingChanged += (s, e) => OnRecordingChanged();
             autoSave.Tick += (s, e) => { autoSave.Stop(); SaveNow(); };
 
             ReloadFromCfg();
+        }
 
-            autoSave.Tick += (s, e) => { autoSave.Stop(); SaveNow(); };
+        // 任意热键框获得焦点 → 挂起；全部失焦 → 恢复
+        void OnRecordingChanged()
+        {
+            if (AnyRecording()) { owner.SuspendHotkeys(); return; }
+            // LostFocus 先于新框 GotFocus 触发：延迟到焦点尘埃落定再恢复，避免“恢复又立刻挂起”抖动
+            BeginInvoke((Action)(delegate
+            {
+                if (!AnyRecording()) owner.ResumeHotkeys();
+            }));
+        }
+
+        bool AnyRecording()
+        {
+            return hkHide.Recording || hkShow.Recording || hkScale.Recording;
+        }
+
+        // 关窗/销毁时若仍在录入态，确保全局热键恢复
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) owner.ResumeHotkeys();
+            base.Dispose(disposing);
         }
 
         void QueueAutoSave()
@@ -109,6 +134,9 @@ namespace quickHide
         void SaveNow()
         {
             if (loading) return;
+            // 正在录入热键时不落盘：交换隐藏/还原热键的中间态（两框相同）不应触发校验回滚，
+            // 推迟到录入结束（失焦提交）后再保存
+            if (AnyRecording()) { QueueAutoSave(); return; }
             string err = ValidateHotkeys();
             if (err != null)
             {

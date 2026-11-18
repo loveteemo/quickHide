@@ -26,6 +26,7 @@ public class TrayContext : ApplicationContext
     HomeForm home;
     // 热键槽位当前实际生效的组合（注册失败回退时用）
     readonly Dictionary<int, string> activeHotkeys = new Dictionary<int, string>();
+    bool hotkeysSuspended; // 设置页录入热键期间挂起全部全局热键
     DateTime cfgMTime;
     string pendingUpdateVersion; // 气泡提示的版本号，点击气泡直接打开关于
 
@@ -44,6 +45,7 @@ public class TrayContext : ApplicationContext
         hotwin.Hide();
         hotwin.HotkeyPressed += id =>
         {
+            if (hotkeysSuspended) return; // 录入态保险（热键已注销，正常不会走到这里）
             if (id == HOTKEY_ID_HIDE) DoHide();
             else if (id == HOTKEY_ID_SHOW) DoShow();
             else if (id == HOTKEY_ID_SCALE) DoScale();
@@ -259,15 +261,35 @@ public class TrayContext : ApplicationContext
         catch { }
     }
 
-    bool RegisterHotkeys()
+    // 设置页进入热键录入时调用：注销全部全局热键（RegisterHotKey 会全局吞键，
+    // 不注销的话按旧热键会直接触发隐藏/还原，输入框根本收不到按键）
+    internal void SuspendHotkeys()
+    {
+        if (hotkeysSuspended || hotwin == null || hotwin.Handle == IntPtr.Zero) return;
+        hotkeysSuspended = true;
+        Win32.UnregisterHotKey(hotwin.Handle, HOTKEY_ID_HIDE);
+        Win32.UnregisterHotKey(hotwin.Handle, HOTKEY_ID_SHOW);
+        Win32.UnregisterHotKey(hotwin.Handle, HOTKEY_ID_SCALE);
+    }
+
+    // 录入结束（失焦/关窗）后恢复注册当前生效的组合；
+    // 录入后提交的新热键由防抖 SaveNow → ApplyReload 再换绑
+    internal void ResumeHotkeys()
+    {
+        if (!hotkeysSuspended) return;
+        hotkeysSuspended = false;
+        RegisterHotkeys(true); // 挂起时已全部注销，组合没变也要重新注册回来
+    }
+
+    bool RegisterHotkeys(bool force = false)
     {
         try
         {
         // 先把三个槽位都尝试一遍再统一提示，避免一个冲突弹窗中断后续热键注册
         var fails = new List<string>();
-        RegisterOne(HOTKEY_ID_HIDE, "隐藏热键", cfg.HideHotkey, v => cfg.HideHotkey = v, fails);
-        RegisterOne(HOTKEY_ID_SHOW, "还原热键", cfg.ShowHotkey, v => cfg.ShowHotkey = v, fails);
-        RegisterOne(HOTKEY_ID_SCALE, "缩放热键", cfg.ScaleHotkey, v => cfg.ScaleHotkey = v, fails);
+        RegisterOne(HOTKEY_ID_HIDE, "隐藏热键", cfg.HideHotkey, v => cfg.HideHotkey = v, fails, force);
+        RegisterOne(HOTKEY_ID_SHOW, "还原热键", cfg.ShowHotkey, v => cfg.ShowHotkey = v, fails, force);
+        RegisterOne(HOTKEY_ID_SCALE, "缩放热键", cfg.ScaleHotkey, v => cfg.ScaleHotkey = v, fails, force);
         if (fails.Count == 0) return true;
 
         string msg = string.Join("\r\n\r\n", fails.ToArray());
@@ -283,11 +305,14 @@ public class TrayContext : ApplicationContext
     }
 
     // 注册热键；被占用时保留上一次生效的组合，绝不把旧键也弄丢
-    bool RegisterOne(int id, string slot, string combo, Action<string> keepCfg, List<string> fails)
+    bool RegisterOne(int id, string slot, string combo, Action<string> keepCfg, List<string> fails, bool force)
     {
         string active;
         lock (activeHotkeys) activeHotkeys.TryGetValue(id, out active);
-        if (!string.IsNullOrEmpty(active) && active == combo) return true; // 没改，保持原注册
+        // 挂起期间保持注销（别在录入到一半时把热键注册回去吞按键），恢复时统一重注册
+        if (!force && hotkeysSuspended) return true;
+        // 挂起期间实际没注册，不能因“组合没变”就跳过
+        if (!force && !hotkeysSuspended && !string.IsNullOrEmpty(active) && active == combo) return true;
 
         // 只腾出当前槽位，其他槽位的热键不受影响
         if (!string.IsNullOrEmpty(active)) Win32.UnregisterHotKey(hotwin.Handle, id);

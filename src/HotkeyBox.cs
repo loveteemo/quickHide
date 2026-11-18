@@ -16,6 +16,11 @@ namespace quickHide
     class HotkeyBox : TextBox
     {
         public event EventHandler ComboChanged;
+        // 进入/退出录入状态（设置面板用它挂起/恢复全局热键）
+        public event EventHandler RecordingChanged;
+
+        public bool Recording { get; private set; }
+        string textOnFocus;
 
         public string Combo
         {
@@ -38,6 +43,29 @@ namespace quickHide
             TextAlign = HorizontalAlignment.Center;
             Font = new Font("Microsoft YaHei UI", 9.5F);
             Cursor = Cursors.Hand;
+        }
+
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            Recording = true;
+            textOnFocus = Text;
+            BackColor = Theme.Lighten(Theme.Panel, 10);
+            ForeColor = Theme.Accent;
+            SelectAll();
+            if (RecordingChanged != null) RecordingChanged(this, EventArgs.Empty);
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            Recording = false;
+            BackColor = Theme.Panel;
+            ForeColor = Theme.Fg;
+            // 失焦才算“设置完成”：此时才提交保存并换绑热键。
+            // 交换隐藏/还原热键的中间态（两个框暂时相同）不会中途触发校验回滚。
+            if (Text != textOnFocus && ComboChanged != null) ComboChanged(this, EventArgs.Empty);
+            if (RecordingChanged != null) RecordingChanged(this, EventArgs.Empty);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

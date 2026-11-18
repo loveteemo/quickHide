@@ -15,7 +15,7 @@ namespace quickHide
 {
 static class Program
 {
-    public const string Version = "0.1.31";
+    public const string Version = "0.1.32";
     public const string ApiBase = "https://loveteemo.com";
     // 反馈入口：跳到软件发布详情页
     public const string FeedbackUrl = "https://loveteemo.com/software/QuickHide";
