@@ -100,20 +100,33 @@ namespace quickHide
             ReloadFromCfg();
         }
 
-        // 任意热键框获得焦点 → 挂起；全部失焦 → 恢复
+        // 任意热键框获得焦点 → 挂起；全部失焦 → 恢复旧热键并立即保存换绑新热键
         void OnRecordingChanged()
         {
             if (AnyRecording()) { owner.SuspendHotkeys(); return; }
-            // LostFocus 先于新框 GotFocus 触发：延迟到焦点尘埃落定再恢复，避免“恢复又立刻挂起”抖动
+            // LostFocus 先于新框 GotFocus 触发：延迟到焦点尘埃落定再处理，避免“恢复又立刻挂起”抖动
             BeginInvoke((Action)(delegate
             {
-                if (!AnyRecording()) owner.ResumeHotkeys();
+                if (IsDisposed || AnyRecording()) return;
+                autoSave.Stop();       // 取消防抖：离开输入框即刻生效，不再等 0.7 秒
+                owner.ResumeHotkeys(); // 先恢复旧热键兜底，保存失败（校验/占用）时仍有热键可用
+                SaveNow();
             }));
         }
 
         bool AnyRecording()
         {
             return hkHide.Recording || hkShow.Recording || hkScale.Recording;
+        }
+
+        // 关窗前补交仍未失焦提交的热键改动（点 X 关窗不触发 LostFocus），并立即保存
+        public void FlushPendingEdits()
+        {
+            if (IsDisposed) return;
+            bool c1 = hkHide.CommitPending();
+            bool c2 = hkShow.CommitPending();
+            bool c3 = hkScale.CommitPending();
+            if (c1 || c2 || c3) SaveNow();
         }
 
         // 关窗/销毁时若仍在录入态，确保全局热键恢复

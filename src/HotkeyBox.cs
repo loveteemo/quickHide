@@ -68,6 +68,15 @@ namespace quickHide
             if (RecordingChanged != null) RecordingChanged(this, EventArgs.Empty);
         }
 
+        // 关窗等 LostFocus 不触发的场景下补交改动；返回是否有改动被提交
+        public bool CommitPending()
+        {
+            if (!Recording || Text == textOnFocus) return false;
+            Recording = false;
+            if (ComboChanged != null) ComboChanged(this, EventArgs.Empty);
+            return true;
+        }
+
         protected override void OnKeyDown(KeyEventArgs e)
         {
             e.Handled = true;

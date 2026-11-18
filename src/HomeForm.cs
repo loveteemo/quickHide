@@ -45,6 +45,8 @@ namespace quickHide
             processPanel = new ProcessPanel(owner) { Dock = DockStyle.Fill };
             settingsPanel = new SettingsPanel(owner) { Dock = DockStyle.Fill };
             settingsPanel.ModeChanged = () => processPanel.ReloadView();
+            // 关窗时补交仍在录入框里未失焦的热键改动（点 X 关窗不会触发 LostFocus）
+            FormClosing += (s, e) => settingsPanel.FlushPendingEdits();
 
             var tpProcs = new TabPage("进程");
             var tpSettings = new TabPage("设置");
