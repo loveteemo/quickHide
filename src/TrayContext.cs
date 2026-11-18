@@ -328,7 +328,18 @@ public class TrayContext : ApplicationContext
         RegisterOne(HOTKEY_ID_HIDE, "隐藏热键", cfg.HideHotkey, v => cfg.HideHotkey = v, fails, prevActive);
         RegisterOne(HOTKEY_ID_SHOW, "还原热键", cfg.ShowHotkey, v => cfg.ShowHotkey = v, fails, prevActive);
         RegisterOne(HOTKEY_ID_SCALE, "缩放热键", cfg.ScaleHotkey, v => cfg.ScaleHotkey = v, fails, prevActive);
-        if (fails.Count == 0) return true;
+        if (fails.Count == 0)
+        {
+            // 换绑成功后气泡提示：与注册前实际生效的组合对比（prevActive 是注销前快照）。
+            // 不能拿 cfg 比对——SaveNow 里 WriteToCfg 已先把它覆盖成新值；启动时 prevActive 为空不提示
+            var changed = new List<string>();
+            string before;
+            if (prevActive.TryGetValue(HOTKEY_ID_HIDE, out before) && before != cfg.HideHotkey) changed.Add("隐藏 " + cfg.HideHotkey);
+            if (prevActive.TryGetValue(HOTKEY_ID_SHOW, out before) && before != cfg.ShowHotkey) changed.Add("还原 " + cfg.ShowHotkey);
+            if (prevActive.TryGetValue(HOTKEY_ID_SCALE, out before) && before != cfg.ScaleHotkey) changed.Add("缩放 " + cfg.ScaleHotkey);
+            if (changed.Count > 0) ShowTip("热键已生效：" + string.Join("，", changed.ToArray()), false);
+            return true;
+        }
 
         string msg = string.Join("\r\n\r\n", fails.ToArray());
         Program.LogText(msg);
@@ -431,7 +442,6 @@ public class TrayContext : ApplicationContext
     internal bool ApplyReload(string tip)
     {
         bool prevHideTaskbar = cfg.HideTaskbarWhenScaled;
-        string prevHide = cfg.HideHotkey, prevShow = cfg.ShowHotkey, prevScale = cfg.ScaleHotkey;
         Config newCfg = Config.Load(cfg.Path);
         cfg.Processes = newCfg.Processes;
         cfg.ExtraClasses = newCfg.ExtraClasses;
@@ -459,15 +469,6 @@ public class TrayContext : ApplicationContext
         if (prevHideTaskbar != cfg.HideTaskbarWhenScaled)
             engine.ApplyTaskbarOption();
         if (hotkeysOk && tip != null) ShowTip(tip, false); // 失败提示已单独弹窗
-        // 热键换绑成功后气泡提示（注册失败已回退时 cfg 与旧值相同，不会误报）
-        if (hotkeysOk && (prevHide != cfg.HideHotkey || prevShow != cfg.ShowHotkey || prevScale != cfg.ScaleHotkey))
-        {
-            var parts = new List<string>();
-            if (prevHide != cfg.HideHotkey) parts.Add("隐藏 " + cfg.HideHotkey);
-            if (prevShow != cfg.ShowHotkey) parts.Add("还原 " + cfg.ShowHotkey);
-            if (prevScale != cfg.ScaleHotkey) parts.Add("缩放 " + cfg.ScaleHotkey);
-            ShowTip("热键已生效：" + string.Join("，", parts.ToArray()), false);
-        }
         UpdateMenuState();
         return hotkeysOk;
     }
